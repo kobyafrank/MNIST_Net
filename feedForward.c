@@ -57,15 +57,15 @@ int main(){
 	//Begin training
 	for (b = 0; b < LAYER2SIZE; b++){
 		for (a = 0; a < LAYER1SIZE; a++){
-			layer21Weights[b][a] = randomSmallFloat(0.2);
+            layer21Weights[b][a] = randomSmallFloat(sqrt(6.) / sqrt(LAYER1SIZE + LAYER2SIZE));
 		}
-        layer2Biases[b] = randomSmallFloat(0.2);
+        layer2Biases[b] = 0;
 	}
 	for (c = 0; c < LAYER3SIZE; c++){
 		for (b = 0; b < LAYER2SIZE; b++){
-			layer32Weights[c][b] = randomSmallFloat(0.2);
+			layer32Weights[c][b] = randomSmallFloat(sqrt(6.) / sqrt(LAYER1SIZE + LAYER2SIZE));
 		}
-        layer3Biases[c] = randomSmallFloat(0.2);
+        layer3Biases[c] = 0;
 	}
     
     FILE* trainingFile;
