@@ -14,7 +14,7 @@
 #define BATCHSIZE 50
 #define TESTINGDATASIZE 10000 //10000
 #define NUMTRAININGEPOCHS 1000 //10000
-#define eta 1.0
+#define eta 1.
 #define TRAININGFILE "MNISTTrainingData.txt"
 #define TESTINGFILE "MNISTTestData.txt"
 
@@ -23,6 +23,8 @@ float magnitudeSquaredOfDifference(float* vector1, float* vector2, int size);
 float magnitudeSquared(float* vector, int size);
 void normalize8BitValues(float* data, int size);
 void normalizeArrayToPercentage(float* arr, int size);
+void softmaxify(float* arr, int size);
+float softmaxPrime(float* arr, int index, int size);
 int findIndexOfMaxItem(float* arr, int size);
 float computeWeightedSum(float* wieghts, float* values, int size);
 float sigmoidPrime(float x);
@@ -44,15 +46,15 @@ int main(){
 	float layer32Weights[LAYER3SIZE][LAYER2SIZE];
     int arrayCounter;
     int L2Neuron, L3Neuron, iter, epoch, resetCounter;
-    float beforeSigmoid;
+    float beforeSoftmax, beforeSigmoid;
     float totalEpochError;
     float averageEpochError;
     float gradientLayer32Weights[LAYER3SIZE][LAYER2SIZE];
     float gradientLayer3Biases[LAYER3SIZE];
     float gradientLayer21Weights[LAYER2SIZE][LAYER1SIZE];
     float gradientLayer2Biases[LAYER2SIZE];
-    float dCostdSigmoid3, dSigmoid3dBeforeSigmoid3, dBeforeSigmoid3dWeight32;
-    float dBeforeSigmoid3dSigmoid2, dSigmoid2dBeforeSigmoid2, dBeforeSigmoid2dWeight21;
+    float dCostdSoftmax3, dSoftmax3dBeforeSoftmax3, dBeforeSoftmax3dWeight32;
+    float dBeforeSoftmax3dSigmoid2, dSigmoid2dBeforeSigmoid2, dBeforeSigmoid2dWeight21;
     
 	//Begin training
 	for (b = 0; b < LAYER2SIZE; b++){
@@ -125,43 +127,44 @@ int main(){
             }
             
             for (L3Neuron = 0; L3Neuron < LAYER3SIZE; L3Neuron++){
-                beforeSigmoid = computeWeightedSum(layer32Weights[L3Neuron], layer2Values, LAYER2SIZE);
-                beforeSigmoid += layer3Biases[L3Neuron];
-                layer3Values[L3Neuron] = sigmoid(beforeSigmoid);
-                //printf("Layer 3 Nueron : %d; After Sigmoid : %f\n", L3Neuron, layer3Values[L3Neuron]);
+                beforeSoftmax = computeWeightedSum(layer32Weights[L3Neuron], layer2Values, LAYER2SIZE);
+                beforeSoftmax += layer3Biases[L3Neuron];
+                layer3Values[L3Neuron] = beforeSoftmax;
             }
+            softmaxify(layer3Values, LAYER3SIZE);
             
-            normalizeArrayToPercentage(layer3Values, LAYER3SIZE);
-            //printf("Normalized Output, data point %d, target %d\n", trainingDataPoint, target);
+            /*
+            printf("Normalized Output, data point %d, target %d\n", trainingDataPoint, target);
             for (iter = 0; iter < LAYER3SIZE; iter++){
-                //printf("%d : %f; ", iter, layer3Values[iter]);
+                printf("%d : %f; ", iter, layer3Values[iter]);
             }
+            */
             
             totalEpochError += magnitudeSquaredOfDifference(vectorizeInt(target), layer3Values, LAYER3SIZE);
             
             for (c = 0; c < LAYER3SIZE; c++){
                 if (c == target){
                     //dCostdSigmoid3 = 2 * (layer3Values[c] - 1) / LAYER3SIZE;
-                    dCostdSigmoid3 = 2 * (layer3Values[c] - 1);
+                    dCostdSoftmax3 = 2 * (layer3Values[c] - 1);
                 }
                 else{
                     //dCostdSigmoid3 = 2 * layer3Values[c] / LAYER3SIZE;
-                    dCostdSigmoid3 = 2 * layer3Values[c];
+                    dCostdSoftmax3 = 2 * layer3Values[c];
                 }
-                dSigmoid3dBeforeSigmoid3 = sigmoidPrime(layer3Values[c]);
+                dSoftmax3dBeforeSoftmax3 = softmaxPrime(layer3Values, c, LAYER3SIZE);
                 for (b = 0; b < LAYER2SIZE; b++){
-                    dBeforeSigmoid3dWeight32 = layer2Values[b];
-                    gradientLayer32Weights[c][b] += dCostdSigmoid3 * dSigmoid3dBeforeSigmoid3 * dBeforeSigmoid3dWeight32;
+                    dBeforeSoftmax3dWeight32 = layer2Values[b];
+                    gradientLayer32Weights[c][b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dWeight32;
                     
-                    dBeforeSigmoid3dSigmoid2 = layer32Weights[c][b];
+                    dBeforeSoftmax3dSigmoid2 = layer32Weights[c][b];
                     dSigmoid2dBeforeSigmoid2 = sigmoidPrime(layer2Values[b]);
                     for (a = 0; a < LAYER1SIZE; a++){
                         dBeforeSigmoid2dWeight21 = layer1Values[a];
-                        gradientLayer21Weights[b][a] += dCostdSigmoid3 * dSigmoid3dBeforeSigmoid3 * dBeforeSigmoid3dSigmoid2 * dSigmoid2dBeforeSigmoid2 * dBeforeSigmoid2dWeight21;
+                        gradientLayer21Weights[b][a] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2 * dBeforeSigmoid2dWeight21;
                     }
-                    gradientLayer2Biases[b] += dCostdSigmoid3 * dSigmoid3dBeforeSigmoid3 * dBeforeSigmoid3dSigmoid2 * dSigmoid2dBeforeSigmoid2;
+                    gradientLayer2Biases[b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2;
                 }
-                gradientLayer3Biases[c] += dCostdSigmoid3 * dSigmoid3dBeforeSigmoid3;
+                gradientLayer3Biases[c] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3;
             }
         
             //printf("\n-----------------END OF TRAINING SET %d--------------------\n", trainingDataPoint);
@@ -254,13 +257,12 @@ int main(){
         //printf("-----------------------------------\n");
             
         for (L3Neuron = 0; L3Neuron < LAYER3SIZE; L3Neuron++){
-            beforeSigmoid = computeWeightedSum(layer32Weights[L3Neuron], layer2Values, LAYER2SIZE);
-            beforeSigmoid += layer3Biases[L3Neuron];
-            layer3Values[L3Neuron] = sigmoid(beforeSigmoid);
-            //printf("Layer 3 Nueron : %d; After Sigmoid : %f\n", L3Neuron, layer3Values[L3Neuron]);
+            beforeSoftmax = computeWeightedSum(layer32Weights[L3Neuron], layer2Values, LAYER2SIZE);
+            beforeSoftmax += layer3Biases[L3Neuron];
+            layer3Values[L3Neuron] = beforeSoftmax;
         }
-            
-        normalizeArrayToPercentage(layer3Values, LAYER3SIZE);
+        softmaxify(layer3Values, LAYER3SIZE);
+
         printf("Target Value: %d \n Guess: %d, with %f percent confidence\n", target, findIndexOfMaxItem(layer3Values, LAYER3SIZE), 100. * layer3Values[findIndexOfMaxItem(layer3Values, LAYER3SIZE)]);
         for (iter = 0; iter < LAYER3SIZE; iter++){
             printf("%d : %f; ", iter, layer3Values[iter]);
@@ -364,6 +366,39 @@ void normalizeArrayToPercentage(float* arr, int size){
     for (i = 0; i < size; i++){
         *(arr + i) = *(arr + i) / sum;
     }
+}
+ 
+void softmaxify(float* arr, int size){
+    int i;
+    float sum = 0;
+    float max = *(arr);
+    for (i = 1; i < size; i++){
+        if (*(arr + i) > max){
+            max = *(arr + i);
+        }
+    }
+    for (i = 0; i < size; i++){
+        sum += exp(*(arr + i) - max);
+    }
+    for (i = 0; i < size; i++){
+        *(arr + i) = exp(*(arr + i) - max) / sum;
+    }
+}
+
+float softmaxPrime(float* arr, int index, int size){
+    int i;
+    float sum = 0;
+    float max = *(arr);
+    for (i = 1; i < size; i++){
+        if (*(arr + i) > max){
+            max = *(arr + i);
+        }
+    }
+    for (i = 0; i < size; i++){
+        sum += exp(*(arr + i) - max);
+    }
+    float s = exp(*(arr + index) - max) / sum;
+    return s * (1 - s);
 }
 
 int findIndexOfMaxItem(float* arr, int size){
