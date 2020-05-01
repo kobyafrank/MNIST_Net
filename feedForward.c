@@ -10,11 +10,12 @@
 #define LAYER1SIZE 28*28
 #define LAYER2SIZE 200
 #define LAYER3SIZE 10
-#define TRAININGDATASIZE 50 //50000
+#define TRAININGDATASIZE 40
 #define BATCHSIZE 50
 #define TESTINGDATASIZE 10000 //10000
-#define NUMTRAININGEPOCHS 1000 //10000
-#define eta 1.
+#define NUMTRAININGEPOCHS 1200
+#define eta .7
+#define dropoutRate .4
 #define TRAININGFILE "MNISTTrainingData.txt"
 #define TESTINGFILE "MNISTTestData.txt"
 
@@ -23,6 +24,7 @@ float magnitudeSquaredOfDifference(float* vector1, float* vector2, int size);
 float magnitudeSquared(float* vector, int size);
 void normalize8BitValues(float* data, int size);
 void normalizeArrayToPercentage(float* arr, int size);
+void adjustWeightsByDropout(int size2, int size1, float arr[size2][size1]);
 void softmaxify(float* arr, int size);
 float softmaxPrime(float* arr, int index, int size);
 int findIndexOfMaxItem(float* arr, int size);
@@ -34,9 +36,10 @@ float randomFloat01(void);
 
 
 int main(){
-    printf("PAREMATERS:\n    Hidden Layer Size = %d \n    Training Data Size = %d \n    eta = %f \n    Number of Epochs = %d\n", LAYER2SIZE, TRAININGDATASIZE, eta, NUMTRAININGEPOCHS);
+    printf("PAREMATERS:\n    Hidden Layer Size = %d \n    Training Data Size = %d \n    eta = %f \n    Dropout Rate = %f \n    Number of Epochs = %d\n", LAYER2SIZE, TRAININGDATASIZE, eta, dropoutRate, NUMTRAININGEPOCHS);
 	int a, b, c;
     int target;
+    int numDroppedOut;
     float layer1Values[LAYER1SIZE] = {};
     float layer2Values[LAYER2SIZE] = {};
     float layer3Values[LAYER3SIZE] = {};
@@ -120,11 +123,19 @@ int main(){
             //End initializing data
             
             for (L2Neuron = 0; L2Neuron < LAYER2SIZE; L2Neuron++){
-                beforeSigmoid = computeWeightedSum(layer21Weights[L2Neuron], layer1Values, LAYER1SIZE);
-                beforeSigmoid += layer2Biases[L2Neuron];
-                layer2Values[L2Neuron] = sigmoid(beforeSigmoid);
+                if (randomFloat01() < dropoutRate){
+                    layer2Values[L2Neuron] = 0;
+                    numDroppedOut ++;
+                }
+                else{
+                    beforeSigmoid = computeWeightedSum(layer21Weights[L2Neuron], layer1Values, LAYER1SIZE);
+                    beforeSigmoid += layer2Biases[L2Neuron];
+                    layer2Values[L2Neuron] = sigmoid(beforeSigmoid);
+                }
                 //printf("Layer 2 Nueron : %d; After Sigmoid : %f\n", L2Neuron, layer2Values[L2Neuron]);
             }
+            //printf("Num dropped out = %d\n", numDroppedOut);
+            numDroppedOut = 0;
             
             for (L3Neuron = 0; L3Neuron < LAYER3SIZE; L3Neuron++){
                 beforeSoftmax = computeWeightedSum(layer32Weights[L3Neuron], layer2Values, LAYER2SIZE);
@@ -152,19 +163,21 @@ int main(){
                     dCostdSoftmax3 = 2 * layer3Values[c];
                 }
                 dSoftmax3dBeforeSoftmax3 = softmaxPrime(layer3Values, c, LAYER3SIZE);
-                for (b = 0; b < LAYER2SIZE; b++){
-                    dBeforeSoftmax3dWeight32 = layer2Values[b];
-                    gradientLayer32Weights[c][b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dWeight32;
-                    
-                    dBeforeSoftmax3dSigmoid2 = layer32Weights[c][b];
-                    dSigmoid2dBeforeSigmoid2 = sigmoidPrime(layer2Values[b]);
-                    for (a = 0; a < LAYER1SIZE; a++){
-                        dBeforeSigmoid2dWeight21 = layer1Values[a];
-                        gradientLayer21Weights[b][a] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2 * dBeforeSigmoid2dWeight21;
-                    }
-                    gradientLayer2Biases[b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2;
-                }
                 gradientLayer3Biases[c] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3;
+                for (b = 0; b < LAYER2SIZE; b++){
+                    if (layer2Values[b] != 0){
+                        dBeforeSoftmax3dWeight32 = layer2Values[b];
+                        gradientLayer32Weights[c][b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dWeight32;
+
+                        dBeforeSoftmax3dSigmoid2 = layer32Weights[c][b];
+                        dSigmoid2dBeforeSigmoid2 = sigmoidPrime(layer2Values[b]);
+                        gradientLayer2Biases[b] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2;
+                        for (a = 0; a < LAYER1SIZE; a++){
+                            dBeforeSigmoid2dWeight21 = layer1Values[a];
+                            gradientLayer21Weights[b][a] += dCostdSoftmax3 * dSoftmax3dBeforeSoftmax3 * dBeforeSoftmax3dSigmoid2 * dSigmoid2dBeforeSigmoid2 * dBeforeSigmoid2dWeight21;
+                        }
+                    }
+                }
             }
         
             //printf("\n-----------------END OF TRAINING SET %d--------------------\n", trainingDataPoint);
@@ -213,6 +226,7 @@ int main(){
     
     int totalCorrect = 0;
     int testingDataPoint;
+    adjustWeightsByDropout(LAYER3SIZE, LAYER2SIZE, layer32Weights);
     for (testingDataPoint = 0; testingDataPoint < TESTINGDATASIZE; testingDataPoint++){
             
         //Begin Initializing data
@@ -280,6 +294,8 @@ int main(){
     fclose(testingFile);
     
     //End testing
+    
+    printf("PAREMATERS:\n    Hidden Layer Size = %d \n    Training Data Size = %d \n    eta = %f \n    Dropout Rate = %f \n    Number of Epochs = %d\n", LAYER2SIZE, TRAININGDATASIZE, eta, dropoutRate, NUMTRAININGEPOCHS);
     
     return 0;
 }
@@ -365,6 +381,16 @@ void normalizeArrayToPercentage(float* arr, int size){
     }
     for (i = 0; i < size; i++){
         *(arr + i) = *(arr + i) / sum;
+    }
+}
+
+void adjustWeightsByDropout(int size2, int size1, float arr[size2][size1]){
+    int i;
+    int j;
+    for (j = 0; j < size2; j++){
+        for (i = 0; i < size1; i++){
+            *(*(arr + j) + i) = *(*(arr + j) + i) * (1. - dropoutRate);
+        }
     }
 }
  
